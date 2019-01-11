@@ -25,4 +25,7 @@ jpa:
                 hbm2ddl:
                     auto: update
                 show_sql: true
-
+---
+core-fantasy:
+    user:
+        jwt-secret: "${CORE_FANTASY_JWT_SECRET}"

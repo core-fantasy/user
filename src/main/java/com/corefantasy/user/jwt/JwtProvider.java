@@ -6,7 +6,7 @@ import com.auth0.jwt.interfaces.JWTVerifier;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.corefantasy.user.model.User;
-import io.micronaut.context.annotation.Value;
+import io.micronaut.context.annotation.Property;
 
 import javax.inject.Singleton;
 import java.time.ZoneId;
@@ -15,18 +15,17 @@ import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalUnit;
 import java.util.Date;
 
-
 @Singleton
-public class Jwt {
+public class JwtProvider {
 
-    private static final String issuer = "core-fantasy";
-    private static final String userIdClaim = "user-id";
+    static final String issuer = "core-fantasy";
+    static final String userIdClaim = "user-id";
 
     private Algorithm algorithm;
     private JWTVerifier verifier;
 
-    // TODO: secret from env + k8s secret
-    public Jwt(@Value("") String secret) {
+    // TODO: secret from env + k8s secret (see application.yaml)
+    public JwtProvider(@Property(name="core-fantasy.user.jwt-secret") String secret) {
         algorithm = Algorithm.HMAC256(secret);
         verifier = JWT.require(algorithm)
                 .withIssuer(issuer)

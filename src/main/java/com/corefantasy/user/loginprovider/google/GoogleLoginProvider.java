@@ -1,6 +1,7 @@
 package com.corefantasy.user.loginprovider.google;
 
 import com.corefantasy.user.controller.UnauthorizedException;
+import com.corefantasy.user.loginprovider.LoginProvider;
 import com.corefantasy.user.loginprovider.LoginProviderException;
 import com.corefantasy.user.model.User;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
@@ -14,9 +15,10 @@ import javax.inject.Singleton;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.Collections;
+import java.util.Map;
 
 @Singleton
-public class LoginProvider implements com.corefantasy.user.loginprovider.LoginProvider {
+public class GoogleLoginProvider implements LoginProvider {
 
     @Value("") // TODO: google client app, get this from env + k8s secret
     final private String CLIENT_ID = "";
@@ -27,7 +29,7 @@ public class LoginProvider implements com.corefantasy.user.loginprovider.LoginPr
     }
 
     @Override
-    public User login(Object credentials) throws LoginProviderException {
+    public User login(Map<String, Object> credentials) throws LoginProviderException {
         try {
             NetHttpTransport transport = new NetHttpTransport.Builder()
                     .build();
@@ -36,7 +38,7 @@ public class LoginProvider implements com.corefantasy.user.loginprovider.LoginPr
                     .setAudience(Collections.singletonList(CLIENT_ID))
                     .build();
 
-            GoogleIdToken idToken = verifier.verify((String) credentials);
+            GoogleIdToken idToken = verifier.verify((String) credentials.get("token"));
             if (idToken != null) {
                 Payload payload = idToken.getPayload();
 
