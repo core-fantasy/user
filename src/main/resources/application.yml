@@ -1,0 +1,50 @@
+---
+micronaut:
+    application:
+        name: user
+    server:
+        port: 8080
+    endpoints:
+        info:
+            enabled: True
+            sensitive: False
+    security:
+        enabled: true
+        endpoints:
+            login:
+                enabled: false
+            oauth:
+                enabled: false
+        token:
+            roles-name: roles
+            jwt:
+                bearer:
+                    enabled: false
+                cookie:
+                    enabled: true
+                    cookie-name: JWT
+                enabled: true
+                signatures:
+                    secret:
+                        generator:
+                            secret: "${JWT_GENERATOR_SIGNATURE_SECRET}"
+                            jws-algorithm: HS256
+---
+datasources:
+    default:
+        # jdbc:postgresql://localhost/high_performance_java_persistence
+        # jdbc:h2:mem:default;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+        url: jdbc:${JDBC_TYPE:`h2`}:${JDBC_ADDRESS:`mem`}${JDBC_DB_NAME:`:default;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE`}
+        username: ${JDBC_USER:sa}
+        password: ${JDBC_PASSWORD:""}
+        driverClassName: ${JDBC_DRIVER:org.h2.Driver}
+---
+jpa:
+    default:
+        packages-to-scan:
+            - 'com.corefantasy.user.model'
+        properties:
+            hibernate:
+                hbm2ddl:
+                    auto: update
+                show_sql: true

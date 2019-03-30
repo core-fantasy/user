@@ -1,2 +1,2 @@
-# user
+# User
 Tracks users
