@@ -1,7 +1,9 @@
 package com.corefantasy.user.dao;
 
-import com.corefantasy.user.DbProperties;
+import com.corefantasy.user.controller.commands.RegisterUser;
 import com.corefantasy.user.dao.exception.RegisterUserException;
+import com.corefantasy.user.dao.exception.UserAlreadyRegisteredException;
+import com.corefantasy.user.model.PublicUser;
 import com.corefantasy.user.model.User;
 import io.micronaut.test.annotation.MicronautTest;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,18 +12,18 @@ import org.junit.jupiter.api.Test;
 import javax.inject.Inject;
 import javax.persistence.EntityManager;
 
+import java.util.Collections;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @MicronautTest
-@DbProperties // TODO: needed?
 class UserRepositoryImplTest {
 
     @Inject
-    EntityManager entityManager;
+    private EntityManager entityManager;
 
-    UserRepository repository;
+    private UserRepository repository;
 
     @BeforeEach
     void setup() {
@@ -31,44 +33,41 @@ class UserRepositoryImplTest {
     @Test
     void registerUser() {
         // First time registration
-        User user1 = new User("abc123", "Test User", "user@user.com");
-        User registeredUser = repository.registerUser(user1);
-        compareUsers(user1, registeredUser);
+        RegisterUser registerUser = new RegisterUser("abc123", "Test User", "user@user.com");
+        User registeredUser = repository.registerUser(registerUser);
+        assertEquals(registerUser.getId(), registeredUser.getId());
+        assertEquals(registerUser.getName(), registeredUser.getName());
+        assertEquals(registerUser.getEmail(), registeredUser.getEmail());
+        assertIterableEquals(Collections.singletonList("ROLE_USER"), registeredUser.getRoles());
 
-        // Re-register user
-        User sameUser = new User(user1.getId(), user1.getName(), user1.getEmail());
-        registeredUser = repository.registerUser(sameUser);
-        compareUsers(user1, registeredUser);
+        // Close the session so the next test works correctly.
+        entityManager.clear();
 
-        // Register user with different name
-        User changedUser = new User(user1.getId(), "New Name", "new@email.com");
-        registeredUser = repository.registerUser(changedUser);
-        compareUsers(changedUser, registeredUser);
+        // Register user with different name/email
+        RegisterUser changedUser = new RegisterUser(registerUser.getId(), "New Name", "new@email.com");
+        assertThrows(UserAlreadyRegisteredException.class, () -> repository.registerUser(changedUser));
 
         // Null user
         assertThrows(RegisterUserException.class, ()-> repository.registerUser(null));
 
         // Null fields
-        assertThrows(RegisterUserException.class, ()-> repository.registerUser(new User(null, null, null)));
+        assertThrows(RegisterUserException.class, ()-> repository.registerUser(new RegisterUser(null, null, null)));
     }
 
     @Test
     void getUserById() {
-        User user1 = new User("abc123", "Test User", "user@user.com");
-        User registeredUser = repository.registerUser(user1);
+        RegisterUser registerUser = new RegisterUser("abc123", "Test User", "user@user.com");
+        User registeredUser = repository.registerUser(registerUser);
 
-        Optional<User> user = repository.getUserById(registeredUser.getId());
-        assertTrue(user.isPresent());
-        compareUsers(registeredUser, user.get());
+        Optional<PublicUser> userOpt = repository.getUserById(registerUser.getId());
+        assertTrue(userOpt.isPresent());
+        PublicUser user = userOpt.get();
+        assertEquals(registeredUser.getId(), user.getId());
+        assertEquals(registeredUser.getName(), user.getName());
+        assertEquals(registeredUser.getEmail(), user.getEmail());
 
         // Get non-existent user
-        final Optional<User> finalUser = repository.getUserById("Not an id.");
-        assertTrue(finalUser.isEmpty(), () -> "User id: " + finalUser.get().getId());
-    }
-
-    private void compareUsers(User expected, User actual) {
-        assertEquals(expected.getId(), actual.getId());
-        assertEquals(expected.getName(), actual.getName());
-        assertEquals(expected.getEmail(), actual.getEmail());
+        final Optional<PublicUser> finalUser = repository.getUserById("Not an id.");
+        assertTrue(! finalUser.isPresent(), () -> "User id: " + finalUser.get().getId());
     }
 }

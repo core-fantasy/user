@@ -1,110 +1,103 @@
 package com.corefantasy.user.controller;
 
+import com.corefantasy.user.controller.commands.RegisteredUser;
+import com.corefantasy.user.controller.commands.RegisterUser;
 import com.corefantasy.user.dao.exception.RegisterUserException;
-import com.corefantasy.user.jwt.JwtProvider;
-import com.corefantasy.user.loginprovider.LoginProvider;
-import com.corefantasy.user.loginprovider.LoginProviderException;
+import com.corefantasy.user.dao.exception.UserAlreadyRegisteredException;
+import com.corefantasy.user.model.PublicUser;
+import com.corefantasy.user.util.JwtUtil;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpStatus;
-import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.*;
 import io.micronaut.http.annotation.Error;
+import io.micronaut.security.annotation.Secured;
 import io.micronaut.validation.Validated;
 import com.corefantasy.user.dao.UserRepository;
 import com.corefantasy.user.model.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
+import java.net.URI;
 import java.util.List;
-import java.util.Map;
-
 
 @Validated
 @Controller("/v1")
 public class UserController {
 
-    private static Logger LOGGER = LoggerFactory.getLogger(UserController.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(UserController.class);
 
-    // TODO: swagger
-
-    // TODO: embed com.corefantasy.user ID into JWT, use that ID to do com.corefantasy.user operations, only allow for that ID
-
-    final private JwtProvider jwtProvider;
-    private final Map<String, LoginProvider> providerMap = new HashMap<>();
+    final private JwtUtil jwtUtil;
     final private UserRepository userRepository;
 
-    public UserController(UserRepository userRepository, JwtProvider jwtProvider, List<LoginProvider> providerList) {
+    public UserController(JwtUtil jwtUtil, UserRepository userRepository) {
+        this.jwtUtil = jwtUtil;
         this.userRepository = userRepository;
-        this.jwtProvider = jwtProvider;
-        /*LOGGER.info("Adding login provider: {}", providerList.getName());
-        providerMap.put(providerList.getName(), providerList);*/
-
-        providerList.forEach(loginProvider -> {
-            LOGGER.info("Adding login provider: {}", loginProvider.getName());
-            providerMap.put(loginProvider.getName(), loginProvider);
-        });
-
     }
 
-    @Get(uri = "/com/corefantasy/user/{id}")
-    public User getUser(String id) {
+    /**
+     * Returns information about the current user.
+     * @param request request with JWT token cookie included
+     * @return current user's information
+     */
+    @Get(uri = "/me")
+    @Secured({"ROLE_USER"})
+    public PublicUser getMyDetails(HttpRequest<?> request) {
+        String userId = jwtUtil.getUserId(request);
+        return userRepository.getUserById(userId).orElseThrow(()->{
+            LOGGER.error("Unexpectedly could not find user data for self. Id: {}", userId);
+            throw new RuntimeException("Unexpectedly could not find self.");
+        });
+    }
+
+    @Get(uri = "/user/{id}")
+    public PublicUser getUser(String id) {
         return null;
     }
 
-    @Put(uri = "/com/corefantasy/user")
-    public User updateUser(@Body User user) { // TODO: change param to request object (something without ID)
-        return user;
+    @Put(uri = "/user")
+    public PublicUser updateUser(@Body User user) { // TODO: change param to request object (something without ID)
+        return null;
     }
 
-    @Delete(uri = "/com/corefantasy/user")
+    @Delete(uri = "/user")
     public void deleteUser() {
+        // TODO: only let normal users delete themselves
+        // TODO: need to clean up other data (leagues, etc.)
     }
 
-    @Post(uri = "/login/{name}")
-    public HttpResponse<String> login(String name, @Body Map<String, Object> credentials) {
+    @Delete(uri = "/user/{id}")
+    @Secured({"ROLE_ADMIN"})
+    public void deleteUserAdmin(String id) {
+    }
 
-        LOGGER.info("Logging in via '{}', with credentials:\n{}", name, credentials);
-
-        HttpResponse<String> response;
+    @Post(uri = "/register")
+    @Secured({"INTERNAL_USER"})
+    public HttpResponse<?> registerUser(@Body RegisterUser registerUser) {
+        HttpResponse<?> response;
         try {
-            var provider = providerMap.get(name);
-            if (provider != null) {
-                User user = providerMap.get(name).login(credentials);
-                user = userRepository.registerUser(user);
-                String token = jwtProvider.getToken(user);
-                // TODO: token as a cookie?
-                response = HttpResponse.ok(token);
-            }
-            else {
-                LOGGER.warn("Invalid login provider given, '{}'.", name);
-                response = HttpResponse.badRequest(
-                        "Attempted to register with unsupported provider, \"" + name + "\".");
-            }
+            LOGGER.info("Registering User: {}.", registerUser);
+            User user = userRepository.registerUser(registerUser);
+            RegisteredUser registeredUser = new RegisteredUser();
+            registeredUser.setId(user.getId());
+            registeredUser.setRoles(List.copyOf(user.getRoles()));
+            // TODO: add location header
+            response = HttpResponse.created(registeredUser, new URI("/v1/user/" + registeredUser.getId()));
         }
-        catch (UnauthorizedException ue) {
-            LOGGER.warn("Unathorized access to '{}' with credentials '{}'.", name, credentials);
-            response = HttpResponse.unauthorized();
-        }
-        catch (LoginProviderException lpe) {
-            LOGGER.warn("Error validating user through '{}'.", name, lpe);
-            response = HttpResponse.serverError(lpe.getMessage());
+        catch (UserAlreadyRegisteredException uare) {
+            LOGGER.warn(uare.getMessage());
+            response = HttpResponse.status(HttpStatus.CONFLICT, "User " + registerUser.getId() + " is already registered.");
         }
         catch (RegisterUserException rue) {
-            LOGGER.error("Error registering user through '{}'.", name, rue);
-            response = HttpResponse.serverError(rue.getMessage());
+            LOGGER.error("Error registering user '{}'.", registerUser, rue);
+            response = HttpResponse.serverError("Internal error registering user.");
         }
         catch (Exception e) {
-            LOGGER.error("Unhandled exception during registration through '{}'.", name, e);
+            LOGGER.error("Unhandled exception registering '{}'.", registerUser, e);
             response = HttpResponse.serverError("Unhandled error during registration.");
         }
-        return response;
-    }
 
-    @Get(uri = "/validate")
-    public void validate() {
-        // TODO: validate user ID in DB?
+        return response;
     }
 
     /**
@@ -114,7 +107,7 @@ public class UserController {
      * @return response
      */
     @Error
-    public HttpResponse<String> jsonError(HttpRequest request, Exception exception) {
+    public HttpResponse<String> exceptionHandler(HttpRequest request, Exception exception) {
         LOGGER.error("Unhandled error while processing {}.", request.getPath(), exception);
         return HttpResponse.<String>status(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error.")
                 .body("Unexpected error during processing.");

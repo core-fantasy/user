@@ -22,7 +22,7 @@ repositories {
 
 dependencyManagement {
     imports {
-        mavenBom 'io.micronaut:micronaut-bom:1.0.1'
+        mavenBom 'io.micronaut:micronaut-bom:1.0.4'
     }
 }
 
@@ -30,10 +30,8 @@ dependencies {
     annotationProcessor "io.micronaut.configuration:micronaut-openapi"
     annotationProcessor "io.micronaut:micronaut-inject-java"
     annotationProcessor "io.micronaut:micronaut-validation"
-    implementation "com.auth0:java-jwt:3.5.0"
-    implementation "com.google.api-client:google-api-client:1.24.1"
-    implementation "com.google.api-client:google-api-client:1.24.1"
     implementation "io.micronaut:micronaut-http-client"
+    implementation "io.micronaut:micronaut-security-jwt"
     implementation "io.micronaut.configuration:micronaut-hibernate-jpa"
     implementation "io.micronaut.configuration:micronaut-jdbc-hikari"
     implementation "io.micronaut:micronaut-inject"
@@ -43,11 +41,11 @@ dependencies {
     implementation "io.micronaut:micronaut-management"
     implementation "io.swagger.core.v3:swagger-annotations"
     implementation "javax.annotation:javax.annotation-api"
+    runtime "org.postgresql:postgresql:42.2.5"
     compileOnly "io.micronaut:micronaut-inject-java"
     runtime "ch.qos.logback:logback-classic:1.2.3"
-    runtime "com.h2database:h2"
-    testCompile "org.mockito:mockito-junit-jupiter:2.+"
-    testImplementation "junit:junit:4.12"
+    testRuntime "com.h2database:h2"
+    testCompile "org.mockito:mockito-junit-jupiter:2.22.0"
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.3.2'
     testImplementation 'org.junit.jupiter:junit-jupiter-params:5.3.2'
     testRuntime 'org.junit.jupiter:junit-jupiter-engine:5.3.2'
@@ -60,6 +58,7 @@ dependencies {
 test {
     useJUnitPlatform()
     dependsOn 'cleanTest'
+    environment "JWT_GENERATOR_SIGNATURE_SECRET", "this_needs_to_be_at_least_256_bits_in_order_to_be_accepted"
     testLogging {
 		events "passed", "skipped", "failed"
     }
