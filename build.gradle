@@ -44,6 +44,7 @@ dependencies {
     runtime "org.postgresql:postgresql:42.2.5"
     compileOnly "io.micronaut:micronaut-inject-java"
     runtime "ch.qos.logback:logback-classic:1.2.3"
+    runtime "net.logstash.logback:logstash-logback-encoder:5.3"
     testRuntime "com.h2database:h2"
     testCompile "org.mockito:mockito-junit-jupiter:2.22.0"
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.3.2'

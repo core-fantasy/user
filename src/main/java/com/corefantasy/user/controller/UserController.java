@@ -12,6 +12,7 @@ import io.micronaut.http.HttpStatus;
 import io.micronaut.http.annotation.*;
 import io.micronaut.http.annotation.Error;
 import io.micronaut.security.annotation.Secured;
+import io.micronaut.security.rules.SecurityRule;
 import io.micronaut.validation.Validated;
 import com.corefantasy.user.dao.UserRepository;
 import com.corefantasy.user.model.User;
@@ -50,6 +51,17 @@ public class UserController {
         });
     }
 
+    /**
+     * Dummy endpoint to test access. Can be deleted.
+     * @return
+     */
+    @Get("/test")
+    @Secured(SecurityRule.IS_ANONYMOUS)
+    public String test() {
+        LOGGER.error("logging some data");
+        return "test endpoint\n";
+    }
+
     @Get(uri = "/user/{id}")
     public PublicUser getUser(String id) {
         return null;
@@ -81,7 +93,6 @@ public class UserController {
             RegisteredUser registeredUser = new RegisteredUser();
             registeredUser.setId(user.getId());
             registeredUser.setRoles(List.copyOf(user.getRoles()));
-            // TODO: add location header
             response = HttpResponse.created(registeredUser, new URI("/v1/user/" + registeredUser.getId()));
         }
         catch (UserAlreadyRegisteredException uare) {
