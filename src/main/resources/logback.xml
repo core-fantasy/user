@@ -8,7 +8,15 @@
         </encoder>
     </appender>
 
+    <appender name="logstash" class="net.logstash.logback.appender.LogstashTcpSocketAppender">
+        <destination>logstash-log4j2:5045</destination>
+        <!-- encoder is required -->
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>{"service":"user"}</customFields>
+        </encoder>
+    </appender>
     <root level="info">
         <appender-ref ref="STDOUT" />
+        <appender-ref ref="logstash" />
     </root>
 </configuration>

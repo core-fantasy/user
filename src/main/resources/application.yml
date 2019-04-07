@@ -6,8 +6,11 @@ micronaut:
         port: 8080
     endpoints:
         info:
-            enabled: True
-            sensitive: False
+            enabled: true
+            sensitive: false
+        health:
+            enabled: true
+            sensitive: false
     security:
         enabled: true
         endpoints:
