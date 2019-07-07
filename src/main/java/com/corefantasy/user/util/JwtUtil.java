@@ -1,14 +1,12 @@
 package com.corefantasy.user.util;
 
+import com.nimbusds.jwt.JWTParser;
 import io.micronaut.context.annotation.Value;
 import io.micronaut.http.HttpRequest;
-import io.micronaut.security.authentication.Authentication;
 import io.micronaut.security.token.jwt.validator.JwtTokenValidator;
-import org.reactivestreams.Publisher;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
 
 import javax.inject.Singleton;
+import java.text.ParseException;
 
 @Singleton
 public class JwtUtil {
@@ -27,33 +25,17 @@ public class JwtUtil {
         return cookie.getValue();
     }
 
-    public String getUserId(HttpRequest<?> request) {
-        return getUserId(extractJwt(request));
+    public String getProvider(HttpRequest<?> request) throws ParseException {
+        // name set in authorization service
+        return getClaim(extractJwt(request), "core-fantasy.com/provider");
     }
 
-    public String getUserId(String jwt) {
-        Publisher<Authentication> auth = tokenValidator.validateToken(jwt);
-        var sub = new Subscriber<Authentication>() {
-            Authentication auth;
-            @Override
-            public void onSubscribe(Subscription s) {
-                s.request(1);
-            }
+    public String getProviderId(HttpRequest<?> request) throws ParseException {
+        // name set in authorization service
+        return getClaim(extractJwt(request), "core-fantasy.com/provider-id");
+    }
 
-            @Override
-            public void onNext(Authentication authentication) {
-                auth = authentication;
-            }
-
-            @Override
-            public void onError(Throwable t) {
-            }
-
-            @Override
-            public void onComplete() {
-            }
-        };
-        auth.subscribe(sub);
-        return sub.auth.getName();
+    public String getClaim(String jwtString, String claim) throws ParseException {
+        return JWTParser.parse(jwtString).getJWTClaimsSet().getStringClaim(claim);
     }
 }

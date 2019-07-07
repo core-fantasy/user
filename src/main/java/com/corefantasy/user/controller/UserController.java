@@ -1,7 +1,5 @@
 package com.corefantasy.user.controller;
 
-import com.corefantasy.user.controller.commands.RegisteredUser;
-import com.corefantasy.user.controller.commands.RegisterUser;
 import com.corefantasy.user.dao.exception.RegisterUserException;
 import com.corefantasy.user.dao.exception.UserAlreadyRegisteredException;
 import com.corefantasy.user.model.PublicUser;
@@ -9,8 +7,10 @@ import com.corefantasy.user.util.JwtUtil;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpStatus;
+import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.annotation.*;
 import io.micronaut.http.annotation.Error;
+import io.micronaut.http.simple.SimpleHttpResponseFactory;
 import io.micronaut.security.annotation.Secured;
 import io.micronaut.security.rules.SecurityRule;
 import io.micronaut.validation.Validated;
@@ -20,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.URI;
+import java.text.ParseException;
 import java.util.List;
 
 @Validated
@@ -29,10 +30,12 @@ public class UserController {
     private static final Logger LOGGER = LoggerFactory.getLogger(UserController.class);
 
     final private JwtUtil jwtUtil;
+    final private SimpleHttpResponseFactory responseFactory;
     final private UserRepository userRepository;
 
     public UserController(JwtUtil jwtUtil, UserRepository userRepository) {
         this.jwtUtil = jwtUtil;
+        this.responseFactory = new SimpleHttpResponseFactory();
         this.userRepository = userRepository;
     }
 
@@ -43,10 +46,12 @@ public class UserController {
      */
     @Get(uri = "/me")
     @Secured({"ROLE_USER"})
-    public PublicUser getMyDetails(HttpRequest<?> request) {
-        String userId = jwtUtil.getUserId(request);
-        return userRepository.getUserById(userId).orElseThrow(()->{
-            LOGGER.error("Unexpectedly could not find user data for self. Id: {}", userId);
+    public PublicUser getMyDetails(HttpRequest<?> request) throws ParseException {
+        String provider = jwtUtil.getProvider(request);
+        String providerId = "";
+        return userRepository.getUserById(provider, providerId).orElseThrow(() -> {
+            LOGGER.error("Unexpectedly could not find user data for self. Provider: {}, provider Id: {}",
+                    provider, providerId);
             throw new RuntimeException("Unexpectedly could not find self.");
         });
     }
@@ -62,13 +67,14 @@ public class UserController {
         return "test endpoint\n";
     }
 
-    @Get(uri = "/user/{id}")
-    public PublicUser getUser(String id) {
+    @Get(uri = "/user/{provider}/{providerId}")
+    public PublicUser getUser(@PathVariable String provider, @PathVariable String providerId) {
         return null;
     }
 
-    @Put(uri = "/user")
-    public PublicUser updateUser(@Body User user) { // TODO: change param to request object (something without ID)
+    @Put(uri = "/user/{provider}/{providerId}")
+    public PublicUser updateUser(@PathVariable String provider, @PathVariable String providerId, @Body Object userData) {
+        // TODO: figure out body
         return null;
     }
 
@@ -78,26 +84,41 @@ public class UserController {
         // TODO: need to clean up other data (leagues, etc.)
     }
 
-    @Delete(uri = "/user/{id}")
+    @Delete(uri = "/user/{provider}/{providerId}")
     @Secured({"ROLE_ADMIN"})
-    public void deleteUserAdmin(String id) {
+    public void deleteUserAdmin(@PathVariable String provider, @PathVariable String providerId) {
     }
 
     @Post(uri = "/register")
     @Secured({"INTERNAL_USER"})
     public HttpResponse<?> registerUser(@Body RegisterUser registerUser) {
-        HttpResponse<?> response;
+        MutableHttpResponse<?> response;
         try {
-            LOGGER.info("Registering User: {}.", registerUser);
-            User user = userRepository.registerUser(registerUser);
+            var roles = userRepository.getUserRoles(registerUser.getProvider(), registerUser.getProviderId());
+
             RegisteredUser registeredUser = new RegisteredUser();
-            registeredUser.setId(user.getId());
-            registeredUser.setRoles(List.copyOf(user.getRoles()));
-            response = HttpResponse.created(registeredUser, new URI("/v1/user/" + registeredUser.getId()));
+
+            if (roles.isPresent()) {
+                LOGGER.info("User {} already registered. Returning roles: {}", registerUser, roles.get());
+                registeredUser.setProvider(registerUser.getProvider());
+                registeredUser.setProviderId(registerUser.getProviderId());
+                registeredUser.setRoles(List.copyOf(roles.get()));
+                response = HttpResponse.ok().body(registeredUser);
+            }
+            else {
+                LOGGER.info("Registering User: {}.", registerUser);
+                User user = userRepository.registerUser(registerUser);
+                registeredUser.setProvider(user.getUserId().getProvider());
+                registeredUser.setProviderId(user.getUserId().getProviderId());
+                registeredUser.setRoles(List.copyOf(user.getRoles()));
+                response = HttpResponse.created(registeredUser);
+            }
+            var location = new URI("/v1/user/" + registeredUser.getProvider() + "/" + registeredUser.getProviderId());
+            response.header("Location", location.getPath());
         }
         catch (UserAlreadyRegisteredException uare) {
             LOGGER.warn(uare.getMessage());
-            response = HttpResponse.status(HttpStatus.CONFLICT, "User " + registerUser.getId() + " is already registered.");
+            response = HttpResponse.status(HttpStatus.CONFLICT, "User " + registerUser + " is already registered.");
         }
         catch (RegisterUserException rue) {
             LOGGER.error("Error registering user '{}'.", registerUser, rue);
@@ -109,6 +130,20 @@ public class UserController {
         }
 
         return response;
+    }
+
+    /**
+     * Error handler for bad JWT. Probably shouldn't ever get called since all controller methods will theoretically
+     * have already checked the JWT.
+     * @param request HTTP request data
+     * @param exception exception thrown
+     * @return response
+     */
+    @Error
+    public HttpResponse<String> exceptionHandler(HttpRequest request, ParseException exception) {
+        LOGGER.error("Invalid JWT provided for request to {}.", request.getPath(), exception);
+        return HttpResponse.<String>status(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error with JWT.")
+                .body("Unexpected error handling JWT.");
     }
 
     /**
