@@ -33,6 +33,7 @@ public class UserRepositoryImpl implements UserRepository {
     @Transactional
     public User registerUser(RegisterUser registerUser) throws RegisterUserException {
         try {
+            // All users need to have the ROLE_USER role in order for login to work correctly in the authorization service.
             User user = new User(registerUser.getProvider(), registerUser.getProviderId(), registerUser.getName(), registerUser.getEmail(),
                     Instant.now(), Collections.singletonList("ROLE_USER"));
             entityManager.persist(user);
